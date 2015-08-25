@@ -20,7 +20,7 @@ def date_to_human_str(d):
 
 
 def today():
-    return date_to_str(datetime.datetime.now())
+    return datetime.datetime.now()
 
 
 def last_monday():
@@ -28,7 +28,7 @@ def last_monday():
     while day.weekday() != 0:
         day += datetime.timedelta(-1)
 
-    return date_to_str(day)
+    return day
 
 
 def next_friday():
@@ -36,7 +36,7 @@ def next_friday():
     while day.weekday() != 4:
         day += datetime.timedelta(1)
 
-    return date_to_str(day)
+    return day
 
 
 def next_sunday():
@@ -44,23 +44,23 @@ def next_sunday():
     while day.weekday() != 6:
         day += datetime.timedelta(1)
 
-    return date_to_str(day)
+    return day
 
 
-def get_today_url():
-    return get_url(today(), today())
+def get_today_dates():
+    return (today(), today())
 
 
-def get_rest_week_url():
-    return get_url(today(), next_friday())
+def get_rest_week_dates():
+    return (today(), next_friday())
 
 
-def get_whole_week_url():
-    return get_url(last_monday(), next_sunday())
+def get_whole_week_dates():
+    return (last_monday(), next_sunday())
 
 
 def get_url(first, last):
-    return "http://www.amica.fi/modules/json/json/Index?costNumber=3498&firstDay=" + first + "&lastDay=" + last + "&language=fi"
+    return "http://www.amica.fi/modules/json/json/Index?costNumber=3498&firstDay=" + date_to_str(first) + "&lastDay=" + date_to_str(last) + "&language=fi"
 
 
 def str_to_date(s):
@@ -107,18 +107,27 @@ if __name__ == "__main__":
     arguments = docopt.docopt(__doc__)
 
     if arguments["week"]:
-        url = get_whole_week_url()
+        first, last = get_whole_week_dates()
     elif arguments["rest"]:
-        url = get_rest_week_url()
+        first, last = get_rest_week_dates()
     else:
-        url = get_today_url()
+        first, last = get_today_dates()
+
+    url = get_url(first, last)
 
     print "Fetching " + url
     print
 
     r = requests.get(url)
     if r.status_code == 200:
-        #print r.json()
-        print_data(r.json())
+        data = r.json()
+
+        # Filter dates which are not requested, api seems to now days always return the whole week
+        def is_before_date(menu):
+            date = datetime.datetime.strptime(menu["Date"], "%Y-%m-%dT%H:%M:%S")
+            return date <= last
+        data["MenusForDays"] = filter(lambda x: is_before_date(x), data["MenusForDays"])
+
+        print_data(data)
     else:
         print "Error fetching data!"
